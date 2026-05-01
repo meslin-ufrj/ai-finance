@@ -1,17 +1,22 @@
+#! /usr/bin/env python3
 # ==========================================================
 # PDF XP -> Excel IRPF Completo
 # Autor: ChatGPT
 # Entrada : Nota de negociação XP em PDF
-# Saída   : IRPF_XP.xlsx
+# Saída   : Nota de negociação XP consolidada em xlsx
 # ==========================================================
+
+import inspect
+import sys
 
 import pdfplumber
 import pandas as pd
 import re
 from datetime import datetime
+import glob
 
-ARQUIVO_PDF = "2025-12-16.pdf"
-ARQUIVO_XLSX = "IRPF_XP.xlsx"
+ARQUIVO_PDF = ""    # nome do arquivo PDF a ser preenchido automaticamente dentro da função
+ARQUIVO_XLSX = ""   # nome do arquivo Excel de saída a ser preenchido automaticamente dentro da função
 
 
 # ==========================================================
@@ -236,16 +241,34 @@ def resumo_mensal(df: pd.DataFrame) -> pd.DataFrame:
 # EXECUÇÃO
 # ==========================================================
 if __name__ == "__main__":
-    df = extrair_operacoes(ARQUIVO_PDF)
-    df2 = calcular_preco_medio(df)
-    resumo = resumo_mensal(df2)
+    #print(f'[DEBUG {inspect.currentframe().f_lineno}] 🛠️  Argumentos de linha de comando: {sys.argv}')
+    #print(f'[DEBUG {inspect.currentframe().f_lineno}] 🛠️  Quantidade de argumentos de linha de comando: {len(sys.argv)}')
+    print(f'[INFO {inspect.currentframe().f_lineno}] 🚀 Iniciando processamento de notas de negociação XP...')
+    if len(sys.argv) == 2:
+        ANO = sys.argv[1]
+    else:
+        ANO = datetime.now().year -1    # processa o ano anterior por padrão
+        print(f'[INFO {inspect.currentframe().f_lineno}] 📅 Nenhum ano especificado. Processando o ano anterior: {ANO}')
+        print(f'[INFO {inspect.currentframe().f_lineno}] 💡 Para processar um ano específico, execute: python nota_negociacao.py <ANO>')
 
-    with pd.ExcelWriter(ARQUIVO_XLSX, engine="openpyxl") as writer:
-        df2.to_excel(writer, sheet_name="Operacoes", index=False)
-        resumo.to_excel(writer, sheet_name="IRPF_Mensal", index=False)
-        carteira = df2.groupby("Ticker").tail(1)[
-            ["Ticker", "Saldo Qtde", "Preço Médio"]
-        ]
-        carteira.to_excel(writer, sheet_name="Carteira Final", index=False)
+    # Procura por todos os arquivos PDF no formato YYYY-MM-DD.pdf
+    arquivos = glob.glob(f"{ANO}-*.pdf")
+    for arquivo in arquivos:
+        print(f'[INFO {inspect.currentframe().f_lineno}] 📄 Processando arquivo: {arquivo}')
 
-    print("Arquivo gerado:", ARQUIVO_XLSX)
+        ARQUIVO_PDF = arquivo
+        ARQUIVO_XLSX = arquivo.replace(".pdf", ".xlsx")
+
+        df = extrair_operacoes(ARQUIVO_PDF)
+        df2 = calcular_preco_medio(df)
+        resumo = resumo_mensal(df2)
+
+        with pd.ExcelWriter(ARQUIVO_XLSX, engine="openpyxl") as writer:
+            df2.to_excel(writer, sheet_name="Operacoes", index=False)
+            resumo.to_excel(writer, sheet_name="IRPF_Mensal", index=False)
+            carteira = df2.groupby("Ticker").tail(1)[
+                ["Ticker", "Saldo Qtde", "Preço Médio"]
+            ]
+            carteira.to_excel(writer, sheet_name="Carteira Final", index=False)
+
+        print(f'[INFO {inspect.currentframe().f_lineno}] ✅ Arquivo gerado: {ARQUIVO_XLSX}')
